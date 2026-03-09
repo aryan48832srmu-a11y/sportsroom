@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hostel Sports Management System</title>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+    
+    <style>
+        :root { --primary: #2563eb; --dark: #0f172a; --bg: #f8fafc; --success: #10b981; --danger: #ef4444; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Poppins', sans-serif; }
+        body { background: var(--bg); color: var(--dark); padding-bottom: 50px; }
+        header { background: var(--dark); color: white; padding: 30px; text-align: center; }
+        .container { max-width: 700px; margin: 20px auto; padding: 0 15px; }
+        .card { background: white; border-radius: 12px; padding: 20px; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+        h2 { font-size: 1.2rem; margin-bottom: 15px; border-bottom: 2px solid #f1f5f9; padding-bottom: 10px; display: flex; justify-content: space-between; }
+        
+        /* Inventory Table */
+        table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
+        th { text-align: left; font-size: 0.85rem; color: #64748b; padding: 10px; background: #f8fafc; }
+        td { padding: 12px 10px; border-bottom: 1px solid #f1f5f9; font-size: 0.95rem; }
+        .count-badge { padding: 2px 8px; border-radius: 6px; font-weight: bold; font-size: 0.85rem; }
+        .avail { background: #dcfce7; color: #166534; }
+        .issued { background: #fee2e2; color: #991b1b; }
+
+        /* QR Scanner */
+        #reader { width: 100%; border-radius: 12px; overflow: hidden; background: #000; }
+        .scan-popup { display: none; background: #f0fdf4; padding: 20px; border-radius: 12px; margin-top: 15px; border: 2px solid var(--success); }
+
+        /* Inputs & Buttons */
+        input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #cbd5e1; border-radius: 8px; }
+        .btn { width: 100%; padding: 14px; border: none; border-radius: 8px; background: var(--primary); color: white; font-weight: 600; cursor: pointer; }
+        .btn-gen { background: var(--dark); margin-top: 10px; }
+        
+        #qrcode { margin-top: 20px; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>Hostel Sports Hub</h1>
+    <p>Equipment Inventory & QR Tracking</p>
+</header>
+
+<div class="container">
+
+    <div class="card">
+        <h2>📊 Gear Inventory</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Equipment Name</th>
+                    <th>Total</th>
+                    <th>Available</th>
+                    <th>Issued</th>
+                </tr>
+            </thead>
+            <tbody id="inventory-body">
+                </tbody>
+        </table>
+    </div>
+
+    <div class="card">
+        <h2>📷 Scan Gear to Issue/Return</h2>
+        <div id="reader"></div>
+        <div id="scan-popup" class="scan-popup">
+            <h3 id="scanned-gear-name" style="color: var(--primary);"></h3>
+            <input type="text" id="memberID" placeholder="Enter Room/Member ID">
+            <div style="display: flex; gap: 10px;">
+                <button class="btn" onclick="updateInventory('issue')">Issue Gear</button>
+                <button class="btn" style="background: var(--dark);" onclick="updateInventory('return')">Return Gear</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>🛠️ QR Label Generator</h2>
+        <input type="text" id="new-gear-name" placeholder="Enter Gear Name to Create Code">
+        <button class="btn btn-gen" onclick="generateNewQR()">Generate Printable QR</button>
+        <div id="qrcode"></div>
+    </div>
+
+</div>
+
+<script>
+    // Initial Inventory Data
+    let inventory = [
+        { name: "Table Tennis Bat", total: 4, issued: 1 },
+        { name: "Football", total: 2, issued: 0 },
+        { name: "Pool Cue", total: 4, issued: 2 },
+        { name: "Carrom Board", total: 2, issued: 1 },
+        { name: "BasketBall", total: 3, issued:1 }
+    ];
+
+    // Render Table
+    function renderTable() {
+        const tbody = document.getElementById('inventory-body');
+        tbody.innerHTML = inventory.map(item => `
+            <tr>
+                <td><b>${item.name}</b></td>
+                <td>${item.total}</td>
+                <td><span class="count-badge avail">${item.total - item.issued}</span></td>
+                <td><span class="count-badge issued">${item.issued}</span></td>
+            </tr>
+        `).join('');
+    }
+    renderTable();
+
+    // --- QR Scanner ---
+    function onScanSuccess(decodedText) {
+        document.getElementById('scan-popup').style.display = 'block';
+        document.getElementById('scanned-gear-name').innerText = decodedText;
+        html5QrcodeScanner.clear();
+    }
+    let html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 });
+    html5QrcodeScanner.render(onScanSuccess);
+
+    // --- Update Logic ---
+    function updateInventory(action) {
+        const gearName = document.getElementById('scanned-gear-name').innerText;
+        const id = document.getElementById('memberID').value;
+        if(!id) return alert("Enter Room/Member ID");
+
+        let item = inventory.find(i => i.name === gearName);
+        
+        if (item) {
+            if (action === 'issue' && item.issued < item.total) {
+                item.issued++;
+                alert(`${gearName} issued to ${id}`);
+            } else if (action === 'return' && item.issued > 0) {
+                item.issued--;
+                alert(`${gearName} returned by ${id}`);
+            } else {
+                alert("Operation not possible (Check stock limits)");
+            }
+        } else {
+            // If gear not in list, add it
+            if(action === 'issue') inventory.push({name: gearName, total: 1, issued: 1});
+            alert("New gear type detected and logged!");
+        }
+
+        renderTable();
+        document.getElementById('scan-popup').style.display = 'none';
+        html5QrcodeScanner.render(onScanSuccess);
+    }
+
+    // --- QR Generator ---
+    var qrcode = new QRCode(document.getElementById("qrcode"), { width: 120, height: 120 });
+    function generateNewQR() {
+        const val = document.getElementById('new-gear-name').value;
+        if(!val) return alert("Enter gear name");
+        qrcode.makeCode(val);
+    }
+</script>
+
+</body>
+</html>
